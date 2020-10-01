@@ -1,5 +1,5 @@
 # nonArmingtonCarbonPolicy
-A non-Armington trade model to simulate carbon pricing and trade policy.
+This is the program used in the paper "Carbon Policy in a Non-Armington Framework". It is used to simulate a non-Armington trade model of carbon pricing and trade policy.
 
 The code is all written in Fortran. There are two data files that are also included that serve as inputs to the program: input.txt and transport.txt.
 Input.txt contains all the information to calibrate the production functions and household factor supply and consumption demand functions. These include input-output matrices as well as the elasticity parameters that were set exogenously. Note that there are options for the elasticity to differ by both region and elasticity. In the input file I include these are assumed to be equal across all regions and industries. This makes the analysis simpler, but different parameters can be specified.
