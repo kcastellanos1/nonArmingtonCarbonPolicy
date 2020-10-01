@@ -1,4 +1,4 @@
-# nonArmingtonCarbonPolicy
+# Non-Armington Trade Model
 This is the program used in the paper "Carbon Policy in a Non-Armington Framework". It is used to simulate a non-Armington trade model of carbon pricing and trade policy.
 
 The code is all written in Fortran. There are two data files that are also included that serve as inputs to the program: input.txt and transport.txt.
