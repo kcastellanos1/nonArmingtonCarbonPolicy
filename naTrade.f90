@@ -2,7 +2,7 @@
 ! For Border Adjustment of Carbon Taxes
 ! Author: Kenneth Austin Castellanos
 ! Email: kcastellanos1@student.gsu.edu
-! Date: 09/24/2020
+! Last updated 10/11/20
 
 program nonarmington
 
@@ -29,7 +29,6 @@ integer, parameter :: N = 5, B = 15, F = 3, Z = 13, T = 3, Transport = 10
 ! Define variables
 
 ! Dynamic state variables
-! deprecated - dynamic portion is not used here
 double precision, dimension(N,T) :: consPath, invPath, capPath1, capPath2, incPath, iRate
 double precision, dimension(T) :: consPathF, invPathF, capPathF, incPathF, iRateF
 double precision, dimension(N,T) :: exDemTime1, exDemTime2
@@ -53,6 +52,7 @@ double precision, dimension(T) :: rent
 double precision, dimension(N,T) :: realRent
 double precision, dimension(B,N,T) :: wage, capDem, labDem, totCapDem, totLabDem
 double precision, dimension(B,N) :: prodAlpha, prodGamma, vaShare
+double precision :: taxShareB, taxShareS
 ! rent = normalized intratemporal price of capital
 ! realRent = real return to capital across time
 ! wage = real wage in each ind/region
@@ -67,13 +67,6 @@ double precision, dimension(B,N) :: prodAlpha, prodGamma, vaShare
 double precision, dimension(B,N) :: calibLaborSupply, calibCapitalSupply
 double precision, dimension(N) :: aggLabor, eLeis, labNu, labA, labC, aggWage, labCons
 double precision, dimension(B,N,T) :: laborSupply, capitalSupply, commSupply, commDemand, exSupply
-! calibLaborSupply = calibrated labor supply from data
-! calibCapitalSupply = calibrated capital supply
-! aggLabor = aggregate labor supply across regions
-! eLeis = leisure elasticity, set from calibration
-! labNu = labor-leisure elasticity parameter
-! labA = labor-leisure scale parameter
-! aggWage = aggregate wage rate in each region
 ! laborSupply = labor supply
 ! capitalSupply = capital supply
 ! *calib prefix indicates calibration amounts
@@ -195,9 +188,10 @@ double precision, dimension(Q-1) :: exDem ! Excess demands
 
 double precision alpha, d1, d2, d3, income
 
-! ----------------------------------------------------------------- 
-!                          Import data
-! ----------------------------------------------------------------- 
+taxShareB = 1
+taxShareS = 0.5
+
+! ----------------------------------------------------------------- Import data
 ! Open file
 open(10, file = "input.txt")
 open(20, file = "output.txt")
@@ -265,15 +259,18 @@ do tt = 1,T
     permit2(:,tt) = permitPrice
 end do
 
+!read(10,*) taxRateCapital
+!read(10,*) taxRateLabor
+
 TR = 0.
 RV = 0.
 
 !! Steady state dynamic variables to start
 invPath = deprec
 consPath = 1 - invPath
-capPath1 = 1 ! I no longer use the dynamic portion here, so just set to unity
+capPath1 = 1
 
-
+! Assign steady state allocations
 do tt = 1,T
     laborSupply(:,:,tt) = calibLaborSupply
     do ii = 1, N
@@ -381,64 +378,60 @@ end do
 !                         Production Variable Calibration
 ! --------------------------------------------------------------------------
 
-! This section sets the different composite parameters given
-! the dataset and chosen elasticity parameters.
-
 ! Fuel demand parameters
-
 do tt = 1,T
-	do r = 1,B
-		do ii = 1,N
-			
-			fuelSigma(r,ii) = 1/(1-fuelRho(r,ii))
-			d1 = 0.
-			d2 = 0.
-			d3 = 0.
-			
-			fuelShare(r,ii,tt) = sum(calibIO(1:F,r,ii))
-				   
-			! Calculate the alphas
-			do i = 1,F
-				fuelAlpha(r,i,ii) = calibIO(i,r,ii)/fuelShare(r,ii,tt)
-				fuelAlpha(r,i,ii) = fuelAlpha(r,i,ii)**(1/fuelSigma(r,ii)) ! fuelAlpha(B,F,N)
-				d2 = d2 + fuelAlpha(r,i,ii)**fuelSigma(r,ii)
-			end do
-			
-			d2 = d2**(1/(1-fuelSigma(r,ii)))
-			
-			! Caclulate cost variable
-			cesCost = 0.
-			do i = 1,F
-				cesCost = cesCost + (fuelAlpha(r,i,ii)**fuelSigma(r,ii))*(1**(1-fuelSigma(r,ii)))
-			end do
-			
-			! Calculate the gamma parameter
-			do i = 1,F
-				! This if condition finds the first non-zero entry to use
-				! as the calibration mark. Any of them will work, but
-				! it has to be non-zero
-				if (calibIO(i,r,ii) > 0.) then
-					d1 = calibIO(i,r,ii)/sum(calibIO(1:F,r,ii))
-					d3 = (fuelAlpha(r,i,ii)**fuelSigma(r,ii))*(1/d2)**(-fuelSigma(r,ii))
-					fuelGamma(r,ii) = (d1/d3)**((1-fuelSigma(r,ii))/fuelSigma(r,ii))
-				end if
-			end do
-			
-			! Finally calculate fuel demands to ensure fidelity
-			
-			cesCost = (cesCost**(1/(1-fuelSigma(r,ii))))*(fuelGamma(r,ii)**((fuelSigma(r,ii)-1)/fuelSigma(r,ii)))
-			
-			do i = 1,F
-				fuelDem(r,i,ii,tt) = ((fuelAlpha(r,i,ii)/fuelGamma(r,ii))**fuelSigma(r,ii))*(1/cesCost)**(-fuelSigma(r,ii))
-				!io(i,r,ii) = fuelDem(r,i,ii) ! Instead of saving here, I calculate totals in the next nest
-			end do
-			
-			if(sum(calibIO(1:F,r,ii)) <= 0.000001)then
-				fuelDem(r,1:F,ii,tt) = 0.
-			end if
-			
-		end do
-	end do
+do r = 1,B
+    do ii = 1,N
+        
+        fuelSigma(r,ii) = 1/(1-fuelRho(r,ii))
+        d1 = 0.
+        d2 = 0.
+        d3 = 0.
+        
+        fuelShare(r,ii,tt) = sum(calibIO(1:F,r,ii))
+               
+        ! Calculate the alphas
+        do i = 1,F
+            fuelAlpha(r,i,ii) = calibIO(i,r,ii)/fuelShare(r,ii,tt)
+            fuelAlpha(r,i,ii) = fuelAlpha(r,i,ii)**(1/fuelSigma(r,ii)) ! fuelAlpha(B,F,N)
+            d2 = d2 + fuelAlpha(r,i,ii)**fuelSigma(r,ii)
+        end do
+        
+        d2 = d2**(1/(1-fuelSigma(r,ii)))
+        
+        ! Caclulate cost variable
+        cesCost = 0.
+        do i = 1,F
+            cesCost = cesCost + (fuelAlpha(r,i,ii)**fuelSigma(r,ii))*(1**(1-fuelSigma(r,ii)))
+        end do
+        
+        ! Calculate the gamma parameter
+        do i = 1,F
+            ! This if condition finds the first non-zero entry to use
+            ! as the calibration mark. Any of them will work, but
+            ! it has to be non-zero
+            if (calibIO(i,r,ii) > 0.) then
+                d1 = calibIO(i,r,ii)/sum(calibIO(1:F,r,ii))
+                d3 = (fuelAlpha(r,i,ii)**fuelSigma(r,ii))*(1/d2)**(-fuelSigma(r,ii))
+                fuelGamma(r,ii) = (d1/d3)**((1-fuelSigma(r,ii))/fuelSigma(r,ii))
+            end if
+        end do
+        
+        ! Finally calculate fuel demands to ensure fidelity
+        
+        cesCost = (cesCost**(1/(1-fuelSigma(r,ii))))*(fuelGamma(r,ii)**((fuelSigma(r,ii)-1)/fuelSigma(r,ii)))
+        
+        do i = 1,F
+            fuelDem(r,i,ii,tt) = ((fuelAlpha(r,i,ii)/fuelGamma(r,ii))**fuelSigma(r,ii))*(1/cesCost)**(-fuelSigma(r,ii))
+            !io(i,r,ii) = fuelDem(r,i,ii) ! Instead of saving here, I calculate totals in the next nest
+        end do
+        
+        if(sum(calibIO(1:F,r,ii)) <= 0.000001)then
+            fuelDem(r,1:F,ii,tt) = 0.
+        end if
+        
+    end do
+end do
 end do
 
 ! Intermediate demand parameters
@@ -571,7 +564,7 @@ end do
 !                         Output Creation
 ! --------------------------------------------------------------------------
 
-! --------- Write out parameters to ensure fidelity
+! ------------------------------------------------------------ Write out parameters to ensure fidelity
 
 write(20,*) "-------------------------------------------------------------------------------------------------"
 write(20,*) "                                      Input Variables Fidelity"
@@ -616,19 +609,9 @@ do r = 1,N
     write(20,*) "Trade Shares: "
     write(20,*) "-----------------------------"
     do c = 1,B
-        write(20,*) share(r,c,:,T)
+        write(20,*) share(c,r,:,1)
     end do
 end do
-
-
-
-! ---------------------------------------------------------------------
-!                     Equilibrium solution
-! ---------------------------------------------------------------------
-
-! We are done reading in data, so now I move on to the main loop
-! in the program. This iterates over a matrix of price possibilities
-! to find the equilibrium solution. It is based on Scarf (1973).
 
 bar = 1
 itersTime = 1
@@ -677,7 +660,8 @@ do while (bar == 1)
         ! --------------------------------------------------------------------
         
         ii = 2
-        numer = myps(2,myjout) ! World capital price is numeraire
+        !numer = sum(myps(11:25,myjout)) / (25-11)! Rent in period one is numeraire
+        numer = myps(2,myjout)
             
         rent(tt) = myps(ii,myjout)/numer
         ii = ii + 1
@@ -706,8 +690,8 @@ do while (bar == 1)
         ! --------------------------------------------------------------------
         !                       Calculate net input/output prices
         ! --------------------------------------------------------------------
-        ! p1 = "Net" Price or world price before tariffs and subsidies
-        ! p2 = "Gross" Price or price to buyer plus tariffs and subsidies
+        ! p1 = "Net" Price or world price before tariffs
+        ! p2 = "Gross" Price or price to buyer plus tariffs
 
         p3 = 0.
         p4 = 0.
@@ -716,7 +700,7 @@ do while (bar == 1)
             !p4(r,ii,tt) = 0.
             do i = 1, N
                 do r = 1, B
-                    p4(r,i,tt) = p4(r,i,tt) + subsidy(r,i,ii)*share(r,i,ii,tt)
+                    p4(r,ii,tt) = p4(r,ii,tt) + subsidy(r,i,ii)*share(r,i,ii,tt)
                 end do
             end do
         end do
@@ -731,7 +715,7 @@ do while (bar == 1)
                     p3(r,ii,tt) = p3(r,ii,tt) + tariff(r,i,ii)*share(r,ii,i,tt)
                 end do
                 
-                p2(r,ii,tt) = p1(r,ii,tt)*(1 + p3(r,ii,tt) - p4(r,ii,tt))
+                p2(r,ii,tt) = p1(r,ii,tt)*(1 + p3(r,ii,tt))
                 
                 
             end do
@@ -853,10 +837,10 @@ do while (bar == 1)
                 
                 alpha = 1-prodAlpha(r,ii)       
                            
-                prodDem(r,2,ii,tt) = (alpha/matPrice(r,ii,tt))*p1(r,ii,tt)
+                prodDem(r,2,ii,tt) = (alpha/matPrice(r,ii,tt))*p1(r,ii,tt)*(1 + p4(r,ii,tt)) ! Rebate for the carbon tax
                 
                 labDem(r,ii,tt) = 1/(( (1/prodGamma(r,ii)) * prodDem(r,2,ii,tt)**alpha)**(1/(1-alpha)))
-                wage(r,ii,tt) = (prodAlpha(r,ii)/labDem(r,ii,tt))*p1(r,ii,tt)
+                wage(r,ii,tt) = (prodAlpha(r,ii)/labDem(r,ii,tt))*p1(r,ii,tt)*(1 + p4(r,ii,tt)) ! Rebate for the carbon tax
                            
                 if (wage(r,ii,tt) <= 0) then
                     capDem(r,ii,tt) = 0.
@@ -1011,10 +995,12 @@ do while (bar == 1)
                 taxRevLabor(ii,tt) = taxRevLabor(ii,tt) + taxRateLabor(ii,tt) * wage(r,ii,tt) * labAlloc(r,ii,tt)
                 taxRevCapital(ii,tt) = taxRevCapital(ii,tt) + taxRateCapital(ii,tt) * rent(tt) * capitalSupply(r,ii,tt)
                 taxRevTariff(r,ii,tt) = p1(r,ii,tt) * p3(r,ii,tt) * commDemand(r,ii,tt)
-                do i = 1, N
-                    taxRevSubsidy(r,ii,tt) = p1(r,i,tt)*subsidy(r,i,ii)*share(r,i,ii,tt)*commDemand(r,i,tt) & 
-                        + taxRevSubsidy(r,ii,tt)
-                end do
+                taxRevSubsidy(r,ii,tt) = p1(r,ii,tt) * p4(r,ii,tt) * commSupply(r,ii,tt)
+                
+               ! do i = 1, N
+               !     taxRevSubsidy(r,ii,tt) = p1(r,i,tt)*subsidy(r,i,ii)*share(r,i,ii,tt)*commDemand(r,i,tt) & 
+               !         + taxRevSubsidy(r,ii,tt)
+               ! end do
             end do
             
             do r = 1,3
@@ -1027,9 +1013,7 @@ do while (bar == 1)
         end do
 
 
-        ! --------------------------------------------------------------------
-        !                           Excess demands
-        ! --------------------------------------------------------------------
+        ! ----------------------------------------------------------  Excess Demands
         ii = 1
 
         exDem(ii) = sum(totCapDem(:,:,tt)) - sum(capitalSupply(:,:,tt))
@@ -1056,7 +1040,7 @@ do while (bar == 1)
         end do
 
 
-        ! ----------------------------------------------------------  Loop conditions
+        ! ----------------------------------------------------------  Algorithm 
 
         if (mod(iters,50000) == 0) then
             write(*,*) "Iters = ", iters, "Goal:", sum(exDem**2)
@@ -1067,7 +1051,7 @@ do while (bar == 1)
         end if
         
         ! --------------------------------------------------------------------
-        !              Check excess demands and transportation matrix
+        !                           Check excess demands
         ! --------------------------------------------------------------------
         
         if(sum(exDem**2) < 0.001) then
@@ -1135,7 +1119,7 @@ do while (bar == 1)
                 end do
             end do
             
-            if(tradeAcc > 0.1)then
+            if(tradeAcc > 0.3)then
                 iters = 0.
                 itcost = itcost1
                 tcost(r,ii,tt) = itcost(r,ii,tt) + dtcost(r,ii,tt)
@@ -1163,7 +1147,6 @@ do while (bar == 1)
     end do
 
     ! Dynamic solution state
-	! Ignore, this does not update anything
 
     do ii = 1,N
         
@@ -1356,9 +1339,7 @@ end do
 close(10)
 close(20)
 
-        ! --------------------------------------------------------------------
-        !                           Subroutines
-        ! --------------------------------------------------------------------
+!!! --------------------------------------------------------------- Subroutines
 
 contains
 
